@@ -2,9 +2,7 @@
 
 ## 1. Integrantes
 
-- Milena — trabalho individual (desenvolveu os módulos das equipes ALFA e BETA e a integração).
-
-> Para entregar: acrescentar sobrenome e RA.
+- Milena Santana De Jesus — RA 202647035 — trabalho individual (desenvolveu os módulos das equipes ALFA e BETA e a integração).
 
 ## 2. Como executar
 
