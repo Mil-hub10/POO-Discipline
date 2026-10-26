@@ -1,0 +1,2 @@
+10;Análise e Desenvolvimento de Sistemas;Presencial
+20;Redes de Computadores;EAD
