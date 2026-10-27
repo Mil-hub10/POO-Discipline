@@ -7,6 +7,7 @@ por codigo_curso e codigo_professor) e gera o relatório integrado.
 
 import os
 
+from base import ErroSistema
 from equipe_alfa.aluno import GerenciadorAlunos
 from equipe_alfa.curso import GerenciadorCursos
 from equipe_beta.disciplina import GerenciadorDisciplinas
@@ -41,6 +42,42 @@ class SistemaAcademico:
             "disciplinas": self.disciplinas,
             "alunos": self.alunos,
         }
+
+    def coletar_avisos(self):
+        """Avisos sobre os arquivos de todos os módulos (RF31)."""
+        avisos = []
+        for gerenciador in self.gerenciadores.values():
+            avisos.extend(gerenciador.pegar_avisos())
+        return avisos
+
+    def alunos_do_curso(self, codigo_curso):  # RF26
+        """Devolve (curso, alunos matriculados nesse curso)."""
+        self.cursos.listar()
+        curso = self.cursos.buscar_por_codigo(codigo_curso)
+        if curso is None:
+            raise ErroSistema(f"Curso com Código do Curso '{codigo_curso}' não encontrado.")
+        alunos = [a for a in self.alunos.listar() if a.codigo_curso == curso.codigo_curso]
+        return curso, alunos
+
+    def alunos_da_disciplina(self, codigo_disciplina):  # RF27
+        """Devolve (disciplina, curso, alunos que a cursam).
+
+        O aluno não guarda a disciplina: ele cursa as disciplinas do curso em
+        que está matriculado. Então cruzamos o codigo_curso do aluno com o
+        codigo_curso da disciplina.
+        """
+        self.disciplinas.listar()
+        disciplina = self.disciplinas.buscar_por_codigo(codigo_disciplina)
+        if disciplina is None:
+            raise ErroSistema(
+                f"Disciplina com Código da Disciplina '{codigo_disciplina}' não encontrada."
+            )
+        self.cursos.listar()
+        curso = self.cursos.buscar_por_codigo(disciplina.codigo_curso)
+        alunos = [
+            a for a in self.alunos.listar() if a.codigo_curso == disciplina.codigo_curso
+        ]
+        return disciplina, curso, alunos
 
     def relatorio_integrado(self):  # RF15
         """Uma frase por aluno x disciplina do curso dele.

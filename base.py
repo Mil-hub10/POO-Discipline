@@ -126,14 +126,20 @@ class GerenciadorBase:
     NOME_ARQUIVO = ""
     ROTULO = ""
     ROTULO_PLURAL = ""
+    GENERO_FEMININO = False  # só para o contador: "encontrado" x "encontrada"
     CAMPOS = []
 
     def __init__(self, pasta_dados):
         self._caminho = os.path.join(pasta_dados, self.NOME_ARQUIVO)
         self._itens = []
         self._dependentes = []  # quem referencia os registros daqui
+        self._avisos = []       # mensagens amigáveis sobre o arquivo (RF31)
+        self._leitura_ok = True
         self.linhas_ignoradas = 0
-        os.makedirs(pasta_dados, exist_ok=True)
+        try:
+            os.makedirs(pasta_dados, exist_ok=True)
+        except OSError:
+            pass  # carregar() informa o problema de forma amigável
         self.carregar()  # RF11: carregamento inicial
 
     # ---- propriedades auxiliares ----------------------------------------
@@ -157,36 +163,83 @@ class GerenciadorBase:
     def _codigo(self, item):
         return getattr(item, self.atributo_id)
 
+    def pegar_avisos(self):
+        """Devolve (e esvazia) os avisos sobre o arquivo, para a interface
+        mostrar ao usuário em vez de o programa fechar com erro (RF31)."""
+        avisos, self._avisos = self._avisos, []
+        return avisos
+
+    def texto_total(self, quantidade):
+        """Texto do rodapé das listagens (RF28): 'Total: 15 alunos encontrados'."""
+        nome = self.ROTULO if quantidade == 1 else self.ROTULO_PLURAL
+        encontrado = "encontrada" if self.GENERO_FEMININO else "encontrado"
+        if quantidade != 1:
+            encontrado += "s"
+        return f"Total: {quantidade} {nome.lower()} {encontrado}"
+
     # ---- persistência ---------------------------------------------------
     def carregar(self):
         """Lê o .txt e converte cada linha em objeto (RF02 / RF11).
 
-        Linhas em branco são ignoradas. Linhas com número errado de campos,
-        dados inválidos ou código repetido são ignoradas e contadas em
-        `linhas_ignoradas`, para o sistema não quebrar com um arquivo
-        editado à mão.
+        Nunca derruba o programa (RF31):
+          * arquivo apagado -> é recriado vazio e o usuário é avisado;
+          * arquivo ilegível ou corrompido -> o usuário é avisado e o arquivo
+            NÃO é sobrescrito (para não perder o que ainda der para recuperar);
+          * linhas em branco são ignoradas; linhas com número errado de
+            campos, dados inválidos ou código repetido são ignoradas e
+            contadas em `linhas_ignoradas`.
         """
         self._itens = []
         self.linhas_ignoradas = 0
+        self._leitura_ok = True
         if not os.path.exists(self._caminho):
-            open(self._caminho, "w", encoding="utf-8").close()
+            try:
+                open(self._caminho, "w", encoding="utf-8").close()
+            except OSError as erro:
+                self._leitura_ok = False
+                self._avisos.append(
+                    f"O arquivo {self.NOME_ARQUIVO} não existe e não pôde ser "
+                    f"criado ({erro.strerror or erro}). Os dados de "
+                    f"{self.ROTULO_PLURAL.lower()} estão inacessíveis."
+                )
+                return
+            self._avisos.append(
+                f"O arquivo {self.NOME_ARQUIVO} não foi encontrado e foi "
+                "recriado vazio."
+            )
+            return
+        try:
+            with open(self._caminho, "r", encoding="utf-8-sig") as arq:
+                linhas = arq.read().splitlines()
+        except (OSError, UnicodeDecodeError):
+            self._leitura_ok = False
+            self._avisos.append(
+                f"O arquivo {self.NOME_ARQUIVO} está inacessível ou corrompido "
+                "e não pôde ser lido. Ele não será alterado. Para recomeçar, "
+                "apague o arquivo (ele será recriado vazio); para recuperar, "
+                "abra-o e salve como UTF-8."
+            )
             return
         codigos = set()
-        with open(self._caminho, "r", encoding="utf-8-sig") as arq:
-            for linha in arq:
-                linha = linha.strip()
-                if not linha:
-                    continue
-                try:
-                    item = self.CLASSE(*linha.split(";"))
-                except (ErroValidacao, TypeError):
-                    self.linhas_ignoradas += 1
-                    continue
-                if self._codigo(item) in codigos:
-                    self.linhas_ignoradas += 1
-                    continue
-                codigos.add(self._codigo(item))
-                self._itens.append(item)
+        for linha in linhas:
+            linha = linha.strip()
+            if not linha:
+                continue
+            try:
+                item = self.CLASSE(*linha.split(";"))
+            except (ErroValidacao, TypeError):
+                self.linhas_ignoradas += 1
+                continue
+            if self._codigo(item) in codigos:
+                self.linhas_ignoradas += 1
+                continue
+            codigos.add(self._codigo(item))
+            self._itens.append(item)
+        if self.linhas_ignoradas:
+            self._avisos.append(
+                f"{self.linhas_ignoradas} linha(s) inválida(s) em "
+                f"{self.NOME_ARQUIVO} foram ignoradas."
+            )
 
     def salvar(self):
         """Regrava o arquivo inteiro (RF12). Escreve num arquivo temporário e
@@ -200,6 +253,12 @@ class GerenciadorBase:
         os.replace(temporario, self._caminho)
 
     def _gravar_ou_desfazer(self, desfazer):
+        if not self._leitura_ok:
+            desfazer()
+            raise ErroSistema(
+                f"{self.NOME_ARQUIVO} está inacessível ou corrompido; nada foi "
+                "gravado para não perder dados. Veja o aviso na listagem."
+            )
         try:
             self.salvar()
         except OSError as erro:

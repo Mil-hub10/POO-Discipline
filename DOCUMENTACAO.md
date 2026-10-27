@@ -90,6 +90,9 @@ Como o sistema lê e grava:
 4. **Ordem de cadastro.** Como há dependências, o cadastro precisa seguir a ordem: curso e professor, depois disciplina, depois aluno. O sistema avisa quando um vínculo aponta para um código que não existe.
 5. **Consistência ao excluir e alterar.** Foi preciso bloquear exclusões que deixariam vínculos quebrados, e garantir que uma alteração inválida não deixe o registro pela metade (ou o arquivo diferente da memória): se qualquer campo novo for inválido, nada é alterado.
 6. **Arquivo editado à mão.** Uma linha quebrada num `.txt` não derruba o programa: ela é ignorada e o usuário é avisado.
+7. **Arquivo apagado ou corrompido (RF31).** Se um `.txt` for apagado, o sistema o recria vazio e avisa. Se ele estiver ilegível (por exemplo, com codificação diferente de UTF-8), o sistema avisa e **não grava por cima dele**, para não destruir dados que ainda poderiam ser recuperados. A mensagem explica o que fazer: apagar o arquivo para recomeçar, ou abri-lo e salvar como UTF-8.
+8. **Limpar a tela sem esconder o resultado (RF30).** Limpar o console a cada menu apagaria a resposta de uma operação antes de ser lida. Por isso, depois de cada operação o sistema pede "Pressione Enter para continuar..." e só então limpa a tela. A limpeza só acontece em um terminal de verdade, para não poluir a saída quando ela é redirecionada.
+9. **Alunos por disciplina (RF27).** O aluno não guarda a disciplina; ele cursa as disciplinas do curso em que está matriculado. A consulta cruza o `codigo_curso` do aluno com o `codigo_curso` da disciplina.
 
 ## 8. Requisitos atendidos
 
@@ -101,7 +104,15 @@ Como o sistema lê e grava:
 | RF13–RF14 (vínculos) | `_validar_vinculos` em `GerenciadorAlunos` e `GerenciadorDisciplinas` |
 | RF15 (relatório) | `SistemaAcademico.relatorio_integrado` |
 | RF16–RF18 (execução) | `main.py` (ponto único, menu e opção "Sair") |
-| Desafio | `interface_grafica.py` (`python main.py --gui`) |
+| RF19–RF22 (validação) | setters das entidades e validadores em `base.py`; código único em `cadastrar` |
+| RF23–RF25 (integridade) | `_validar_vinculos` e `registrar_dependente` (exclusão protegida) |
+| RF26 (filtro por curso) | `SistemaAcademico.alunos_do_curso`; menu Alunos, opção 6; filtro na aba Alunos |
+| RF27 (alunos por disciplina) | `SistemaAcademico.alunos_da_disciplina`; menu Disciplinas, opção 6; aba Relatórios |
+| RF28 (contador) | `GerenciadorBase.texto_total`: "Total: 15 alunos encontrados" no rodapé das listagens |
+| RF29 (confirmação) | "Tem certeza que deseja excluir?" no console e na interface gráfica |
+| RF30 (limpeza de tela) | `limpar_tela` em `main.py`; a interface gráfica atualiza e limpa a aba ao trocar |
+| RF31 (erro amigável) | `GerenciadorBase.carregar` e `pegar_avisos`: arquivo recriado ou inacessível vira aviso |
+| RF32–RF33 / Desafio | `interface_grafica.py`: uma aba por módulo, tabelas (`Treeview`); `python main.py --gui` |
 
 ## 9. Roteiro sugerido para a demonstração
 
@@ -111,4 +122,6 @@ Como o sistema lê e grava:
 4. Cadastrar um **Aluno** no curso.
 5. Abrir o **Relatório integrado** e mostrar a frase.
 6. Abrir os `.txt` de novo e mostrar as linhas novas gravadas.
-7. Mostrar um erro de validação (ex.: aluno em curso inexistente) e, se quiser, a interface gráfica.
+7. Mostrar um erro de validação (ex.: aluno em curso inexistente).
+8. Mostrar o filtro de alunos por curso e os alunos de uma disciplina, com o total no rodapé.
+9. Se quiser, mostrar a interface gráfica (`python main.py --gui`).

@@ -213,5 +213,123 @@ class TestEncapsulamento(BaseTeste):
         self.assertIn("João Silva", str(aluno))
 
 
+class TestRequisitosComplementares(BaseTeste):
+    """RF19 a RF33 (complemento de requisitos)."""
+
+    def popular_dois_cursos(self):
+        self.popular()
+        self.s.cursos.cadastrar(codigo_curso="20", nome="Redes", modalidade="EAD")
+        self.s.alunos.cadastrar(matricula="2", nome="Bia", cpf="99988877766", email="bia@x.com", codigo_curso="20")
+
+    def test_filtro_por_curso_rf26(self):
+        self.popular_dois_cursos()
+        curso, alunos = self.s.alunos_do_curso("10")
+        self.assertEqual(curso.codigo_curso, "10")
+        self.assertEqual([a.matricula for a in alunos], ["202301"])
+        _curso, alunos = self.s.alunos_do_curso("20")
+        self.assertEqual([a.matricula for a in alunos], ["2"])
+        with self.assertRaises(ErroSistema):
+            self.s.alunos_do_curso("99")
+
+    def test_alunos_por_disciplina_rf27(self):
+        self.popular_dois_cursos()
+        disciplina, curso, alunos = self.s.alunos_da_disciplina("D1")
+        self.assertEqual(disciplina.codigo_disciplina, "D1")
+        self.assertEqual(curso.codigo_curso, "10")
+        self.assertEqual([a.matricula for a in alunos], ["202301"])  # Bia é do curso 20
+        with self.assertRaises(ErroSistema):
+            self.s.alunos_da_disciplina("ZZ")
+
+    def test_contador_rf28(self):
+        self.assertEqual(self.s.alunos.texto_total(0), "Total: 0 alunos encontrados")
+        self.assertEqual(self.s.alunos.texto_total(1), "Total: 1 aluno encontrado")
+        self.assertEqual(self.s.alunos.texto_total(15), "Total: 15 alunos encontrados")
+        self.assertEqual(self.s.disciplinas.texto_total(1), "Total: 1 disciplina encontrada")
+        self.assertEqual(self.s.disciplinas.texto_total(2), "Total: 2 disciplinas encontradas")
+        self.assertEqual(self.s.cursos.texto_total(3), "Total: 3 cursos encontrados")
+        self.assertEqual(self.s.professores.texto_total(2), "Total: 2 professores encontrados")
+
+    def test_arquivo_novo_avisa_que_foi_criado_rf31(self):
+        avisos = self.s.coletar_avisos()  # pasta nova no setUp
+        self.assertEqual(len(avisos), 4)
+        self.assertTrue(all("recriado" in a for a in avisos))
+        self.assertEqual(self.s.coletar_avisos(), [])  # avisos são entregues uma vez
+
+    def test_arquivo_apagado_e_recriado_sem_derrubar_rf31(self):
+        self.popular()
+        self.s.coletar_avisos()
+        caminho = os.path.join(self.pasta, "alunos.txt")
+        os.remove(caminho)
+        self.assertEqual(self.s.alunos.listar(), [])  # não dá erro
+        self.assertTrue(os.path.exists(caminho))
+        avisos = self.s.alunos.pegar_avisos()
+        self.assertEqual(len(avisos), 1)
+        self.assertIn("recriado", avisos[0])
+
+    def test_arquivo_corrompido_avisa_e_nao_e_sobrescrito_rf31(self):
+        self.popular()
+        self.s.coletar_avisos()
+        caminho = os.path.join(self.pasta, "alunos.txt")
+        lixo = b"\xff\xfe\x00;;\x80"
+        with open(caminho, "wb") as f:
+            f.write(lixo)
+        self.assertEqual(self.s.alunos.listar(), [])  # não dá erro
+        avisos = self.s.alunos.pegar_avisos()
+        self.assertTrue(avisos and "inacess" in avisos[0])
+        with self.assertRaises(ErroSistema):  # recusa gravar por cima
+            self.s.alunos.cadastrar(matricula="9", nome="Zé", cpf="12345678900", email="z@x.com", codigo_curso="10")
+        with open(caminho, "rb") as f:
+            self.assertEqual(f.read(), lixo)  # arquivo intacto
+        self.assertEqual(self.s.alunos.itens, [])
+
+    def test_arquivo_volta_ao_normal_depois_de_corrigido(self):
+        self.popular()
+        caminho = os.path.join(self.pasta, "alunos.txt")
+        with open(caminho, "wb") as f:
+            f.write(b"\xff\xfe")
+        self.s.alunos.listar()
+        os.remove(caminho)  # o usuário apaga, como o aviso sugere
+        self.s.alunos.listar()
+        self.s.alunos.cadastrar(matricula="9", nome="Zé", cpf="12345678900", email="z@x.com", codigo_curso="10")
+        self.assertEqual(ler(self.pasta, "alunos.txt"), ["9;Zé;123.456.789-00;z@x.com;10"])
+
+    def test_linhas_invalidas_geram_aviso_rf31(self):
+        with open(os.path.join(self.pasta, "cursos.txt"), "w", encoding="utf-8") as f:
+            f.write("10;ADS;EAD\nquebrada\n")
+        self.s.coletar_avisos()
+        self.s.cursos.listar()
+        avisos = self.s.cursos.pegar_avisos()
+        self.assertTrue(avisos and "1 linha(s) inválida(s)" in avisos[0])
+
+    def test_unicidade_obrigatorios_e_sanitizacao_rf19_a_rf22(self):
+        self.popular()
+        casos = [
+            lambda: self.s.alunos.cadastrar(matricula="202301", nome="Outro", cpf="12345678900", email="o@x.com", codigo_curso="10"),  # RF19
+            lambda: self.s.professores.cadastrar(codigo_professor="P1", nome="Outro", cpf="12345678900", especialidade="X"),           # RF19
+            lambda: self.s.alunos.cadastrar(matricula="5", nome="", cpf="12345678900", email="o@x.com", codigo_curso="10"),            # RF20
+            lambda: self.s.alunos.cadastrar(matricula="5", nome="Ana", cpf="1234", email="o@x.com", codigo_curso="10"),                # RF21
+            lambda: self.s.alunos.cadastrar(matricula="5", nome="Ana", cpf="12345678900", email="sem-arroba", codigo_curso="10"),      # RF21
+            lambda: self.s.alunos.cadastrar(matricula="5", nome="Ana", cpf="12345678900", email="a@semponto", codigo_curso="10"),     # RF21
+            lambda: self.s.disciplinas.cadastrar(codigo_disciplina="D9", nome="X", carga_horaria="-1", codigo_professor="P1", codigo_curso="10"),  # RF21
+            lambda: self.s.alunos.cadastrar(matricula="5", nome="Ana;Maria", cpf="12345678900", email="o@x.com", codigo_curso="10"),  # RF22
+        ]
+        for i, caso in enumerate(casos):
+            with self.subTest(caso=i):
+                with self.assertRaises(ErroValidacao):
+                    caso()
+        self.assertEqual(len(ler(self.pasta, "alunos.txt")), 1)  # nada foi salvo
+
+    def test_integridade_referencial_rf23_a_rf25(self):
+        self.popular()
+        with self.assertRaises(ErroValidacao):  # RF23
+            self.s.alunos.cadastrar(matricula="5", nome="Ana", cpf="12345678900", email="o@x.com", codigo_curso="99")
+        with self.assertRaises(ErroValidacao):  # RF25
+            self.s.disciplinas.cadastrar(codigo_disciplina="D9", nome="X", carga_horaria="40", codigo_professor="ZZ", codigo_curso="10")
+        with self.assertRaises(ErroValidacao):  # RF25
+            self.s.disciplinas.cadastrar(codigo_disciplina="D9", nome="X", carga_horaria="40", codigo_professor="P1", codigo_curso="99")
+        with self.assertRaises(ErroSistema):  # RF24
+            self.s.cursos.excluir("10")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

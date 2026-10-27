@@ -76,6 +76,7 @@ class GerenciadorDisciplinas(GerenciadorBase):
     NOME_ARQUIVO = "disciplinas.txt"
     ROTULO = "Disciplina"
     ROTULO_PLURAL = "Disciplinas"
+    GENERO_FEMININO = True
     CAMPOS = [
         ("codigo_disciplina", "Código da Disciplina"),
         ("nome", "Nome"),

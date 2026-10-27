@@ -12,6 +12,8 @@ Sistema de cadastro acadêmico que gerencia **Alunos, Cursos, Professores e Disc
 - **Persistência em arquivos `.txt`**, um por entidade, com campos separados por ponto e vírgula (`;`). Os dados são carregados ao iniciar e o arquivo é atualizado a cada cadastro, alteração ou exclusão.
 - **Vínculos entre entidades:** o aluno pertence a um curso; a disciplina pertence a um curso e a um professor. O sistema recusa vínculos com códigos que não existem e impede excluir um curso ou professor ainda em uso.
 - **Validação dos dados:** CPF, e-mail, modalidade (Presencial ou EAD), carga horária e códigos únicos.
+- **Consultas extras:** alunos de um curso, alunos de uma disciplina e contador de registros no rodapé das listagens (ex.: "Total: 15 alunos encontrados").
+- **Segurança dos dados:** confirmação antes de excluir e aviso amigável se um arquivo `.txt` for apagado ou estiver corrompido, sem o programa fechar e sem sobrescrever o que ainda pode ser recuperado.
 - **Relatório integrado:** uma frase por aluno e disciplina do curso dele, no formato *"O Aluno [Nome] está matriculado no curso [Curso], assistindo a disciplina [Disciplina] com o professor [Professor]."*
 - **Duas interfaces:** menu no console e interface gráfica (desafio), ambas em um único ponto de entrada, o `main.py`.
 
